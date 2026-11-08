@@ -23,7 +23,12 @@ async function assertNameAvailable(name: string, exceptId?: number) {
 export async function setRoutes(app: FastifyInstance) {
   app.get("/api/sets", async () => {
     return db
-      .select({ id: wordSets.id, name: wordSets.name, wordCount: count(words.id) })
+      .select({
+        id: wordSets.id,
+        name: wordSets.name,
+        createdAt: wordSets.createdAt,
+        wordCount: count(words.id),
+      })
       .from(wordSets)
       .leftJoin(words, eq(words.setId, wordSets.id))
       .groupBy(wordSets.id)

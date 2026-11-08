@@ -1,6 +1,6 @@
 export type HealthStatus = { status: "ok" | "error"; database: "up" | "down"; ai: boolean };
 
-export type WordSet = { id: number; name: string; wordCount: number };
+export type WordSet = { id: number; name: string; createdAt: string; wordCount: number };
 
 export type DuplicateCheck = { term: string; existing: { id: number; setName: string } | null };
 
