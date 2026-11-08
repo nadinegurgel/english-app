@@ -16,6 +16,9 @@ type Props = {
 
 type Mode = "view" | "rename" | "confirm-delete";
 
+// For example: "7 de nov. de 2026".
+const createdDateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
+
 export function SetCard({
   set,
   words,
@@ -104,7 +107,8 @@ export function SetCard({
           <span>
             <span className="set-name">{set.name}</span>
             <span className="set-count">
-              {words.length === 1 ? "1 palavra" : `${words.length} palavras`}
+              {words.length === 1 ? "1 palavra" : `${words.length} palavras`} · criado em{" "}
+              {createdDateFormat.format(new Date(set.createdAt))}
             </span>
           </span>
           <span className="chevron" aria-hidden="true">
