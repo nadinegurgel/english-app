@@ -345,7 +345,7 @@ export function AddWordsScreen() {
                       <label className="field">
                         <span className="field-label">Frase de exemplo (B1)</span>
                         <textarea
-                          rows={2}
+                          rows={3}
                           value={draft.exampleSentence}
                           placeholder={draft.loading ? "Gerando…" : ""}
                           onChange={(event) =>
@@ -385,19 +385,19 @@ export function AddWordsScreen() {
             >
               {toSave.length === 1 ? "Salvar 1 palavra" : `Salvar ${toSave.length} palavras`}
             </button>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => {
-                setStep("input");
-                setError(null);
-                setNotice(null);
-              }}
-              disabled={busy}
-            >
-              Voltar e editar a lista
-            </button>
           </div>
+          <button
+            className="button secondary outline"
+            type="button"
+            onClick={() => {
+              setStep("input");
+              setError(null);
+              setNotice(null);
+            }}
+            disabled={busy}
+          >
+            Voltar e editar a lista
+          </button>
         </>
       )}
     </section>
