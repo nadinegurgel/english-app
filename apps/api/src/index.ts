@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import { db, sqlClient } from "./db/client.js";
 import { runMigrations } from "./db/migrate.js";
+import { words } from "./db/schema.js";
 import { env } from "./env.js";
 import { HttpError } from "./lib/http-errors.js";
 import { quizRoutes } from "./routes/quiz.js";
@@ -11,6 +12,7 @@ import { setRoutes } from "./routes/sets.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { wordRoutes } from "./routes/words.js";
 import { isAiEnabled } from "./services/claude.js";
+import { prepareQuizSentencesInBackground } from "./services/quiz-data.js";
 
 const app = Fastify({ logger: true });
 
@@ -52,3 +54,10 @@ process.on("SIGTERM", shutdown);
 
 await runMigrations();
 await app.listen({ port: env.PORT, host: env.HOST });
+
+// Words saved before the quiz sentence pool existed (or while AI was off) get their sentences now.
+const allWordIds = await db.select({ id: words.id }).from(words);
+prepareQuizSentencesInBackground(
+  allWordIds.map((word) => word.id),
+  (error) => app.log.error(error),
+);

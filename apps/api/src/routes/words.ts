@@ -5,7 +5,10 @@ import { db } from "../db/client.js";
 import { wordSets, words } from "../db/schema.js";
 import { HttpError } from "../lib/http-errors.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
-import { prepareQuizDataInBackground } from "../services/quiz-data.js";
+import {
+  prepareQuizSentencesInBackground,
+  resetQuizSentences,
+} from "../services/quiz-data.js";
 import { generateSuggestions } from "../services/suggestions.js";
 
 const termSchema = z.string().trim().min(1).max(100);
@@ -108,7 +111,7 @@ export async function wordRoutes(app: FastifyInstance) {
     const created = toInsert.length
       ? await db.insert(words).values(toInsert).onConflictDoNothing().returning()
       : [];
-    prepareQuizDataInBackground(
+    prepareQuizSentencesInBackground(
       created.map((word) => word.id),
       (error) => request.log.error(error),
     );
@@ -136,10 +139,8 @@ export async function wordRoutes(app: FastifyInstance) {
     if (!current) {
       throw new HttpError(404, "Word not found.");
     }
-    const exampleSentence = body.exampleSentence || null;
-    // AI distractors depend on the term and the sentence, so they are regenerated when either changes.
-    const quizDataChanged =
-      current.normalizedTerm !== normalizedTerm || current.exampleSentence !== exampleSentence;
+    // Quiz sentences contain the term, so they are replaced when the term changes.
+    const termChanged = current.normalizedTerm !== normalizedTerm;
 
     const [updated] = await db
       .update(words)
@@ -147,8 +148,7 @@ export async function wordRoutes(app: FastifyInstance) {
         term: body.term.replace(/\s+/g, " "),
         normalizedTerm,
         meaningPt: body.meaningPt || null,
-        exampleSentence,
-        ...(quizDataChanged ? { partOfSpeech: null, distractors: null } : {}),
+        exampleSentence: body.exampleSentence || null,
         updatedAt: new Date(),
       })
       .where(eq(words.id, id))
@@ -162,8 +162,9 @@ export async function wordRoutes(app: FastifyInstance) {
     if (!updated) {
       throw new HttpError(404, "Word not found.");
     }
-    if (quizDataChanged) {
-      prepareQuizDataInBackground([updated.id], (error) => request.log.error(error));
+    if (termChanged) {
+      await resetQuizSentences(updated.id);
+      prepareQuizSentencesInBackground([updated.id], (error) => request.log.error(error));
     }
     return updated;
   });

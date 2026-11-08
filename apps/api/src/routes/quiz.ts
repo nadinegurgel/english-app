@@ -33,7 +33,7 @@ export async function quizRoutes(app: FastifyInstance) {
   app.get("/api/quiz/daily", async (request) => {
     const { today } = todayQuery.parse(request.query);
     const { reviews, fresh } = await dueWords(today);
-    return buildQuestions([...reviews, ...fresh]);
+    return buildQuestions([...reviews, ...fresh], (error) => request.log.error(error));
   });
 
   // Free practice of one set. Answers are not recorded and do not change the schedule.
@@ -43,7 +43,7 @@ export async function quizRoutes(app: FastifyInstance) {
       .select()
       .from(words)
       .where(and(eq(words.setId, setId), isNotNull(words.exampleSentence)));
-    return buildQuestions(setWords);
+    return buildQuestions(setWords, (error) => request.log.error(error));
   });
 
   // Records the first answer to a word in the daily quiz and updates its schedule.
