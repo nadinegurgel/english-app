@@ -66,6 +66,7 @@ Open http://localhost:8080. Nginx serves the web app and proxies `/api` to the A
 | `npm run dev` | Runs the API and the web app with hot reload |
 | `npm run build` | Builds both apps |
 | `npm run typecheck` | Type-checks both apps |
+| `npm test` | Runs the API unit tests (spaced repetition rules) |
 | `npm run db:generate` | Creates a new SQL migration after changing `apps/api/src/db/schema.ts` |
 | `npm run db:migrate` | Applies pending migrations manually |
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, api, type Word, type WordSet } from "../api/client";
 import { WordEditor } from "./WordEditor";
 
@@ -145,9 +146,15 @@ export function SetCard({
       {expanded && mode === "view" && (
         <>
           <div className="row set-actions">
-            <button className="button secondary" type="button" disabled title="Disponível em breve">
-              Praticar (em breve)
-            </button>
+            {words.some((word) => word.exampleSentence) ? (
+              <Link className="button secondary" to={`/practice/${set.id}`}>
+                Praticar
+              </Link>
+            ) : (
+              <button className="button secondary" type="button" disabled>
+                Praticar
+              </button>
+            )}
             <button className="link-button" type="button" onClick={() => setMode("rename")}>
               Renomear
             </button>

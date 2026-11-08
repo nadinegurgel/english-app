@@ -36,24 +36,42 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 13 | Words are edited inline in their set card | The list stays in view; no extra screen. |
 | 14 | Search runs on the client | A single user has at most a few thousand words, so filtering in the browser is instant. Search ignores accents and matches the term or the Portuguese meaning. |
 | 15 | Sets can be renamed and deleted | Deleting a set deletes its words, after an explicit confirmation. Words cannot be moved between sets for now. |
+| 16 | "Practice" is free training | Practicing a set never changes the schedule or the streak. |
+| 17 | Wrong options are mixed | Up to 2 of the user's own words with the same part of speech and the same form (-ing, -ed, -s, base), completed with AI distractors generated once per word and stored. Without AI, any of the user's other words are used. |
+| 18 | Daily new-word limit starts at 5 | Adjustable from 1 to 50 in Settings. |
+| 19 | A day counts for the streak when the whole daily quiz is finished | Days with nothing scheduled are recorded as "rest" days when the app is opened: they keep the streak without adding to it. |
+| 20 | A wrong answer adds an extra review the next day | The regular Day 3 / Day 7 schedule continues; nothing restarts. The word also comes back once at the end of the current quiz. |
+| 21 | The client sends its local date | All "today" logic uses the device's calendar day (YYYY-MM-DD), so the server's time zone does not matter. |
 
 ## Screens
 
-- **Today**: new words and reviews due, "Start quiz", progress, streak, upcoming reviews.
+- **Today**: new words and reviews due, "Start quiz", progress, streak, upcoming reviews, link to Settings.
+- **Quiz**: daily quiz or free practice of a set, results with right and wrong words.
+- **Settings**: daily new-word limit and quiz format.
 - **Add words**: paste one word per line, choose a set, preview and edit meaning and example sentence, duplicate warnings.
 - **Words**: sets and words, search, inline edit, delete, rename and delete sets, practice a set (enabled with the quiz).
 
-## Spaced repetition (planned)
+## Spaced repetition
 
-Each word has its own schedule, counted from the day it is first studied:
+Each word has its own schedule (`apps/api/src/services/schedule.ts`):
 
-- Day 1: first study (new word, up to the daily limit)
-- Day 3: first review
-- Day 7: second review, after which the word is "learned"
-- A wrong answer re-queues the word at the end of the current quiz and adds an extra review the next day.
-- Missed days do not drop reviews: overdue words appear on "Today", and the next interval starts from the day they were actually reviewed.
+| Stage | Meaning | Next step |
+| --- | --- | --- |
+| 0 | New | Enters the daily quiz, up to the daily limit, oldest first |
+| 1 | Day 1 done | Review 2 days later (Day 3) |
+| 2 | Day 3 done | Review 4 days later (Day 7) |
+| 3 | Learned | Leaves the daily quiz; can still be practiced |
 
-The exact data model is defined in the spaced repetition stage.
+- Intervals are counted from the day the review was actually done, so overdue reviews simply accumulate on "Today".
+- A wrong answer sets `extra_review_on` to the next day, independent of the regular schedule.
+- Only the first answer to a word in a quiz is recorded. Wrong words are shown once more at the end of the quiz.
+- The rules are covered by unit tests in `apps/api/test/schedule.test.ts` (`npm test`).
+
+## Quiz
+
+- Questions blank out the term in its example sentence and show 4 shuffled options.
+- AI quiz data (part of speech and 3 distractors) is generated in the background when words are saved, or on first use, and cleared when the term or sentence is edited.
+- Two formats: one question at a time, or all on one screen. The choice is saved in Settings and can be changed at the start of each quiz.
 
 ## AI suggestions
 
@@ -74,3 +92,8 @@ The exact data model is defined in the spaced repetition stage.
 | POST | `/api/words` | Save words to a set, skipping duplicates |
 | PUT | `/api/words/:id` | Edit term, meaning and sentence (409 on duplicate spelling) |
 | DELETE | `/api/words/:id` | Delete a word |
+| GET | `/api/today?today=` | Counts for today, streak, progress and upcoming reviews |
+| GET | `/api/quiz/daily?today=` | Questions for today's quiz |
+| GET | `/api/quiz/practice/:setId` | Questions for free practice of a set |
+| POST | `/api/quiz/answers` | Record the first answer to a word and update its schedule |
+| GET / PUT | `/api/settings` | Daily new-word limit and quiz format |
