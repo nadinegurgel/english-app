@@ -23,6 +23,28 @@ export type Word = {
 
 export type WordUpdate = { term: string; meaningPt: string; exampleSentence: string };
 
+export type QuizMode = "one" | "all";
+
+export type Settings = { dailyNewLimit: number; quizMode: QuizMode };
+
+export type Question = {
+  wordId: number;
+  prompt: string;
+  options: string[];
+  answer: string;
+  meaningPt: string | null;
+  sentence: string;
+};
+
+export type TodaySummary = {
+  newCount: number;
+  reviewCount: number;
+  streak: { days: number; studiedToday: boolean };
+  progress: { total: number; learned: number; learning: number; new: number };
+  withoutSentence: number;
+  upcoming: { day: string; count: number }[];
+};
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -56,6 +78,17 @@ export const api = {
   updateWord: (id: number, changes: WordUpdate) =>
     request<Word>(`/api/words/${id}`, { method: "PUT", body: changes }),
   deleteWord: (id: number) => request<void>(`/api/words/${id}`, { method: "DELETE" }),
+  today: (today: string) => request<TodaySummary>(`/api/today?today=${today}`),
+  dailyQuiz: (today: string) => request<Question[]>(`/api/quiz/daily?today=${today}`),
+  practiceQuiz: (setId: number) => request<Question[]>(`/api/quiz/practice/${setId}`),
+  recordAnswer: (wordId: number, correct: boolean, today: string) =>
+    request<{ dayCompleted: boolean }>("/api/quiz/answers", {
+      method: "POST",
+      body: { wordId, correct, today },
+    }),
+  getSettings: () => request<Settings>("/api/settings"),
+  updateSettings: (settings: Settings) =>
+    request<Settings>("/api/settings", { method: "PUT", body: settings }),
   checkDuplicates: (terms: string[]) =>
     request<DuplicateCheck[]>("/api/words/check", { method: "POST", body: { terms } }),
   suggest: (terms: string[]) =>

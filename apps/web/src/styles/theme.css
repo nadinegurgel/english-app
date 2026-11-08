@@ -344,6 +344,7 @@ select:disabled {
   color: var(--color-lavender-strong);
   font: inherit;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -494,4 +495,242 @@ select:disabled {
   margin: 0;
   color: #9c3d56;
   font-size: 0.9rem;
+}
+
+.app-content.no-nav {
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+}
+
+.app-content.no-nav .sticky-actions {
+  bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.quiz-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.card-title {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.message.success {
+  background: #e6f3ec;
+  color: #3d7a5c;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-soft);
+}
+
+.segmented button {
+  min-height: 40px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.segmented button.active {
+  background: var(--color-surface);
+  color: var(--color-lavender-strong);
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-soft);
+  overflow: hidden;
+}
+
+.progress-bar.large {
+  height: 10px;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-pink-strong), var(--color-lavender-strong));
+  transition: width 0.3s ease;
+}
+
+.progress-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.progress-legend strong {
+  color: var(--color-text);
+}
+
+.streak {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.streak-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.upcoming-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.upcoming-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.upcoming-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.upcoming-count {
+  color: var(--color-text-muted);
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.question-number {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.question-prompt {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.options {
+  display: grid;
+  gap: 8px;
+}
+
+.option {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.option.selected {
+  border-color: var(--color-lavender-strong);
+  background: var(--color-surface-soft);
+}
+
+.option.correct {
+  border-color: var(--color-success);
+  background: #e6f3ec;
+  color: #2f6a4d;
+  font-weight: 600;
+}
+
+.option.wrong {
+  border-color: var(--color-error);
+  background: #fbe9ee;
+  color: #9c3d56;
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.feedback p {
+  margin: 0;
+}
+
+.feedback.correct {
+  background: #e6f3ec;
+}
+
+.feedback.wrong {
+  background: #fbe9ee;
+}
+
+.feedback-title {
+  font-weight: 600;
+}
+
+.feedback-sentence {
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.feedback-sentence strong {
+  color: var(--color-text);
+}
+
+.result-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.result-title.correct {
+  color: var(--color-success);
+}
+
+.result-title.wrong {
+  color: var(--color-error);
+}
+
+.word-row.static {
+  cursor: default;
+}
+
+.message a {
+  color: var(--color-lavender-strong);
+  font-weight: 600;
 }

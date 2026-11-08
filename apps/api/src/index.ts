@@ -6,9 +6,11 @@ import { db, sqlClient } from "./db/client.js";
 import { runMigrations } from "./db/migrate.js";
 import { env } from "./env.js";
 import { HttpError } from "./lib/http-errors.js";
+import { quizRoutes } from "./routes/quiz.js";
 import { setRoutes } from "./routes/sets.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { wordRoutes } from "./routes/words.js";
-import { isAiEnabled } from "./services/suggestions.js";
+import { isAiEnabled } from "./services/claude.js";
 
 const app = Fastify({ logger: true });
 
@@ -37,6 +39,8 @@ app.get("/api/health", async (_request, reply) => {
 
 await app.register(setRoutes);
 await app.register(wordRoutes);
+await app.register(quizRoutes);
+await app.register(settingsRoutes);
 
 const shutdown = async () => {
   await app.close();

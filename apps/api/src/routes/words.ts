@@ -5,6 +5,7 @@ import { db } from "../db/client.js";
 import { wordSets, words } from "../db/schema.js";
 import { HttpError } from "../lib/http-errors.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
+import { prepareQuizDataInBackground } from "../services/quiz-data.js";
 import { generateSuggestions } from "../services/suggestions.js";
 
 const termSchema = z.string().trim().min(1).max(100);
@@ -107,6 +108,10 @@ export async function wordRoutes(app: FastifyInstance) {
     const created = toInsert.length
       ? await db.insert(words).values(toInsert).onConflictDoNothing().returning()
       : [];
+    prepareQuizDataInBackground(
+      created.map((word) => word.id),
+      (error) => request.log.error(error),
+    );
 
     return reply.code(201).send({
       created: created.length,
@@ -127,13 +132,23 @@ export async function wordRoutes(app: FastifyInstance) {
       throw new HttpError(409, "Another word with this spelling already exists.");
     }
 
+    const current = await db.query.words.findFirst({ where: eq(words.id, id) });
+    if (!current) {
+      throw new HttpError(404, "Word not found.");
+    }
+    const exampleSentence = body.exampleSentence || null;
+    // AI distractors depend on the term and the sentence, so they are regenerated when either changes.
+    const quizDataChanged =
+      current.normalizedTerm !== normalizedTerm || current.exampleSentence !== exampleSentence;
+
     const [updated] = await db
       .update(words)
       .set({
         term: body.term.replace(/\s+/g, " "),
         normalizedTerm,
         meaningPt: body.meaningPt || null,
-        exampleSentence: body.exampleSentence || null,
+        exampleSentence,
+        ...(quizDataChanged ? { partOfSpeech: null, distractors: null } : {}),
         updatedAt: new Date(),
       })
       .where(eq(words.id, id))
@@ -146,6 +161,9 @@ export async function wordRoutes(app: FastifyInstance) {
       });
     if (!updated) {
       throw new HttpError(404, "Word not found.");
+    }
+    if (quizDataChanged) {
+      prepareQuizDataInBackground([updated.id], (error) => request.log.error(error));
     }
     return updated;
   });

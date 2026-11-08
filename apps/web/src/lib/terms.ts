@@ -26,3 +26,16 @@ export function sentenceContainsTerm(sentence: string, term: string): boolean {
   const escaped = normalizeTerm(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}])${escaped}($|[^\\p{L}])`, "iu").test(sentence);
 }
+
+/** Splits the sentence around the first occurrence of the term, for highlighting. */
+export function splitAroundTerm(
+  sentence: string,
+  term: string,
+): { before: string; match: string; after: string } | null {
+  const escaped = normalizeTerm(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(^|[^\\p{L}])(${escaped})($|[^\\p{L}])`, "iu").exec(sentence);
+  if (!match) return null;
+  const start = match.index + match[1]!.length;
+  const end = start + match[2]!.length;
+  return { before: sentence.slice(0, start), match: sentence.slice(start, end), after: sentence.slice(end) };
+}
