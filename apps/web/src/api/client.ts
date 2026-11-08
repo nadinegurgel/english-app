@@ -13,6 +13,16 @@ export type Suggestion = {
 
 export type NewWord = { term: string; meaningPt?: string; exampleSentence?: string };
 
+export type Word = {
+  id: number;
+  setId: number;
+  term: string;
+  meaningPt: string | null;
+  exampleSentence: string | null;
+};
+
+export type WordUpdate = { term: string; meaningPt: string; exampleSentence: string };
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -39,6 +49,13 @@ export const api = {
   health: () => request<HealthStatus>("/api/health"),
   listSets: () => request<WordSet[]>("/api/sets"),
   createSet: (name: string) => request<WordSet>("/api/sets", { method: "POST", body: { name } }),
+  renameSet: (id: number, name: string) =>
+    request<{ id: number; name: string }>(`/api/sets/${id}`, { method: "PUT", body: { name } }),
+  deleteSet: (id: number) => request<void>(`/api/sets/${id}`, { method: "DELETE" }),
+  listWords: () => request<Word[]>("/api/words"),
+  updateWord: (id: number, changes: WordUpdate) =>
+    request<Word>(`/api/words/${id}`, { method: "PUT", body: changes }),
+  deleteWord: (id: number) => request<void>(`/api/words/${id}`, { method: "DELETE" }),
   checkDuplicates: (terms: string[]) =>
     request<DuplicateCheck[]>("/api/words/check", { method: "POST", body: { terms } }),
   suggest: (terms: string[]) =>
