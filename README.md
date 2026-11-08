@@ -40,6 +40,13 @@ npm run dev                 # API on :3000, web app on :5173
 
 Open http://localhost:5173. The "Today" screen shows **Servidor conectado** when the API can reach the database. Migrations run automatically when the API starts.
 
+### Enabling AI example sentences
+
+1. Create an API key at https://console.anthropic.com (prepaid credits; you can set a monthly spend limit there).
+2. Put it in `.env` as `ANTHROPIC_API_KEY=...` and restart `npm run dev`.
+
+Without a key, the "Add words" preview still works and you fill in the meaning and sentence yourself.
+
 ### Testing on your phone (same Wi-Fi)
 
 `npm run dev` also prints a **Network** address (for example `http://192.168.x.x:5173`). Open it on the phone. Installing the PWA and push notifications require HTTPS, so they only work after deploying with a domain.

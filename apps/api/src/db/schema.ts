@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const wordSets = pgTable(
   "word_sets",
@@ -18,12 +18,12 @@ export const words = pgTable(
       .notNull()
       .references(() => wordSets.id, { onDelete: "cascade" }),
     term: text().notNull(),
-    // Lowercased, trimmed version of the term, used to detect duplicates.
+    // Lowercased, trimmed version of the term. A word exists only once across all sets.
     normalizedTerm: text().notNull(),
     meaningPt: text(),
     exampleSentence: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("words_normalized_term_idx").on(table.normalizedTerm)],
+  (table) => [uniqueIndex("words_normalized_term_idx").on(table.normalizedTerm)],
 );
