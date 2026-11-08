@@ -33,12 +33,15 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 10 | A word is "learned" after the Day 7 review | It leaves the daily quiz but can still be practiced from its set. |
 | 11 | Adjustable daily limit for new words | Avoids a large pile of Day 3 and Day 7 reviews after pasting many words. Words above the limit start on the following days. |
 | 12 | Overdue reviews accumulate on "Today" | After each review, the next date is counted from the day it was actually studied. |
+| 13 | Words are edited inline in their set card | The list stays in view; no extra screen. |
+| 14 | Search runs on the client | A single user has at most a few thousand words, so filtering in the browser is instant. Search ignores accents and matches the term or the Portuguese meaning. |
+| 15 | Sets can be renamed and deleted | Deleting a set deletes its words, after an explicit confirmation. Words cannot be moved between sets for now. |
 
 ## Screens
 
 - **Today**: new words and reviews due, "Start quiz", progress, streak, upcoming reviews.
 - **Add words**: paste one word per line, choose a set, preview and edit meaning and example sentence, duplicate warnings.
-- **Words**: sets and words, search, edit, delete, practice a set.
+- **Words**: sets and words, search, inline edit, delete, rename and delete sets, practice a set (enabled with the quiz).
 
 ## Spaced repetition (planned)
 
@@ -63,6 +66,11 @@ The exact data model is defined in the spaced repetition stage.
 | GET | `/api/health` | Database status and whether AI suggestions are enabled |
 | GET | `/api/sets` | Sets with word counts |
 | POST | `/api/sets` | Create a set (409 if the name exists) |
+| PUT | `/api/sets/:id` | Rename a set (409 if the name exists) |
+| DELETE | `/api/sets/:id` | Delete a set and its words |
+| GET | `/api/words` | All words |
 | POST | `/api/words/check` | Which terms are already saved, and in which set |
 | POST | `/api/words/suggestions` | AI meaning and example sentence per term |
 | POST | `/api/words` | Save words to a set, skipping duplicates |
+| PUT | `/api/words/:id` | Edit term, meaning and sentence (409 on duplicate spelling) |
+| DELETE | `/api/words/:id` | Delete a word |
