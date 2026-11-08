@@ -211,3 +211,155 @@ h1 {
 .server-status.offline .dot {
   background: var(--color-error);
 }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  /* 16px prevents iOS Safari from zooming in when a field gets focus. */
+  font: inherit;
+  font-size: 16px;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.4;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--color-lavender);
+  outline-offset: 1px;
+  border-color: var(--color-lavender-strong);
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.7;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.message {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-soft);
+  font-size: 0.9rem;
+}
+
+.message.error {
+  background: #fbe9ee;
+  color: #9c3d56;
+}
+
+.message.warning {
+  background: #fdf3e2;
+  color: #8a5a1c;
+}
+
+.draft-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.draft.muted {
+  opacity: 0.75;
+}
+
+.draft-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-term {
+  font-weight: 600;
+  font-size: 1.05rem !important;
+}
+
+.icon-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-soft);
+  color: var(--color-text-muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.link-button {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--color-lavender-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+}
+
+.sticky-actions {
+  position: sticky;
+  bottom: calc(var(--nav-height) + 12px + env(safe-area-inset-bottom));
+}
+
+.sticky-actions .button.primary {
+  box-shadow: 0 6px 20px rgb(125 104 179 / 0.3);
+}
+
+.button.outline {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}

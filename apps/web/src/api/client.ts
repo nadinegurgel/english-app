@@ -1,6 +1,51 @@
-export type HealthStatus = { status: "ok" | "error"; database: "up" | "down" };
+export type HealthStatus = { status: "ok" | "error"; database: "up" | "down"; ai: boolean };
 
-export async function fetchHealth(): Promise<HealthStatus> {
-  const response = await fetch("/api/health");
-  return (await response.json()) as HealthStatus;
+export type WordSet = { id: number; name: string; wordCount: number };
+
+export type DuplicateCheck = { term: string; existing: { id: number; setName: string } | null };
+
+export type Suggestion = {
+  term: string;
+  meaningPt: string;
+  exampleSentence: string;
+  sentenceHasTerm: boolean;
+};
+
+export type NewWord = { term: string; meaningPt?: string; exampleSentence?: string };
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
+
+async function request<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const response = await fetch(path, {
+    method: init?.method ?? "GET",
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiError(response.status, (data as { error?: string }).error ?? "Request failed.");
+  }
+  return data as T;
+}
+
+export const api = {
+  health: () => request<HealthStatus>("/api/health"),
+  listSets: () => request<WordSet[]>("/api/sets"),
+  createSet: (name: string) => request<WordSet>("/api/sets", { method: "POST", body: { name } }),
+  checkDuplicates: (terms: string[]) =>
+    request<DuplicateCheck[]>("/api/words/check", { method: "POST", body: { terms } }),
+  suggest: (terms: string[]) =>
+    request<Suggestion[]>("/api/words/suggestions", { method: "POST", body: { terms } }),
+  saveWords: (setId: number, words: NewWord[]) =>
+    request<{ created: number; skipped: number }>("/api/words", {
+      method: "POST",
+      body: { setId, words },
+    }),
+};

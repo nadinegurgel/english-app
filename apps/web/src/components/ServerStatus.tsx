@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchHealth } from "../api/client";
+import { api } from "../api/client";
 
 type State = "checking" | "online" | "offline";
 
@@ -13,7 +13,8 @@ export function ServerStatus() {
   const [state, setState] = useState<State>("checking");
 
   useEffect(() => {
-    fetchHealth()
+    api
+      .health()
       .then((health) => setState(health.status === "ok" ? "online" : "offline"))
       .catch(() => setState("offline"));
   }, []);
