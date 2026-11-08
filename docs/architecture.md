@@ -42,6 +42,8 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 19 | A day counts for the streak when the whole daily quiz is finished | Days with nothing scheduled are recorded as "rest" days when the app is opened: they keep the streak without adding to it. |
 | 20 | A wrong answer adds an extra review the next day | The regular Day 3 / Day 7 schedule continues; nothing restarts. The word also comes back once at the end of the current quiz. |
 | 21 | The client sends its local date | All "today" logic uses the device's calendar day (YYYY-MM-DD), so the server's time zone does not matter. |
+| 22 | The quiz never uses the example sentence | Each word has its own pool of quiz sentences, so the user learns the word and not one sentence. The example sentence stays in "Words" for study. |
+| 23 | Quiz sentences come from a stored pool | 4 sentences are created per word in the background; the quiz picks the least used one and tops up the pool when only one unused sentence is left (up to 16 per word, then it rotates). Opening a quiz never waits for AI, except for a word with no sentence yet. |
 
 ## Screens
 
@@ -70,7 +72,9 @@ Each word has its own schedule (`apps/api/src/services/schedule.ts`):
 ## Quiz
 
 - Questions blank out the term in its example sentence and show 4 shuffled options.
-- AI quiz data (part of speech and 3 distractors) is generated in the background when words are saved, or on first use, and cleared when the term or sentence is edited.
+- Questions come from `quiz_sentences`, a pool of AI sentences per word, each with its own 3 distractors. The example sentence is only used as a fallback when AI is off.
+- The pool is filled in the background when words are saved and when the API starts, and is replaced when the term of a word is edited.
+- After answering, the quiz shows the quiz sentence completed with the term.
 - Two formats: one question at a time, or all on one screen. The choice is saved in Settings and can be changed at the start of each quiz.
 
 ## AI suggestions
