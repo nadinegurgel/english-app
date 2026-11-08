@@ -5,11 +5,9 @@ import { db } from "../db/client.js";
 import { wordSets, words } from "../db/schema.js";
 import { HttpError } from "../lib/http-errors.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
-import {
-  prepareQuizSentencesInBackground,
-  resetQuizSentences,
-} from "../services/quiz-data.js";
-import { generateSuggestions, suggestRelatedWords } from "../services/suggestions.js";
+import { ensureEntries } from "../services/dictionary.js";
+import { prepareQuizSentencesInBackground } from "../services/quiz-data.js";
+import { suggestExamples, suggestRelatedWords } from "../services/suggestions.js";
 
 const termSchema = z.string().trim().min(1).max(100);
 const meaningSchema = z.string().trim().max(200);
@@ -19,7 +17,12 @@ const termList = z.array(termSchema).min(1).max(200);
 
 const checkBody = z.object({ terms: termList });
 
-const suggestionsBody = z.object({ terms: termList.max(50) });
+const suggestionsBody = z.object({
+  items: z
+    .array(z.object({ term: termSchema, seen: z.array(sentenceSchema).max(50).default([]) }))
+    .min(1)
+    .max(50),
+});
 
 const saveBody = z.object({
   setId: z.number().int().positive(),
@@ -93,8 +96,8 @@ export async function wordRoutes(app: FastifyInstance) {
   });
 
   app.post("/api/words/suggestions", async (request) => {
-    const { terms } = suggestionsBody.parse(request.body);
-    return generateSuggestions(terms);
+    const { items } = suggestionsBody.parse(request.body);
+    return suggestExamples(items);
   });
 
   app.post("/api/words/related", async (request) => {
@@ -135,6 +138,7 @@ export async function wordRoutes(app: FastifyInstance) {
         exampleSentence: word.exampleSentence || null,
       }));
 
+    await ensureEntries(toInsert.map((word) => ({ term: word.term })));
     const created = toInsert.length
       ? await db.insert(words).values(toInsert).onConflictDoNothing().returning()
       : [];
@@ -166,7 +170,7 @@ export async function wordRoutes(app: FastifyInstance) {
     if (!current) {
       throw new HttpError(404, "Word not found.");
     }
-    // Quiz sentences contain the term, so they are replaced when the term changes.
+    // A new term has its own shared dictionary entry and quiz sentences.
     const termChanged = current.normalizedTerm !== normalizedTerm;
 
     const [updated] = await db
@@ -190,7 +194,8 @@ export async function wordRoutes(app: FastifyInstance) {
       throw new HttpError(404, "Word not found.");
     }
     if (termChanged) {
-      await resetQuizSentences(updated.id);
+      // The new term has its own shared quiz sentences; make sure they exist.
+      await ensureEntries([{ term: updated.term }]);
       prepareQuizSentencesInBackground([updated.id], (error) => request.log.error(error));
     }
     return updated;

@@ -29,6 +29,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PORT: 3000
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXAMPLE_SENTENCES_PER_WORD: ${EXAMPLE_SENTENCES_PER_WORD:-5}
+      QUIZ_SENTENCES_PER_WORD: ${QUIZ_SENTENCES_PER_WORD:-8}
     depends_on:
       db:
         condition: service_healthy

@@ -1,18 +1,22 @@
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { quizSentences, words } from "../db/schema.js";
+import { quizSentenceViews, words } from "../db/schema.js";
 import { blankOutTerm, normalizeTerm } from "../lib/normalize.js";
+import { getEntries } from "./dictionary.js";
 import {
   ensureQuizSentences,
   prepareQuizSentencesInBackground,
-  sentencesByWord,
+  quizSentencesByTerm,
+  viewsByWord,
+  type QuizSentence,
+  type SentenceView,
 } from "./quiz-data.js";
 
 // How many of the 3 wrong options may come from the user's own words (the rest come from AI).
 const MAX_OWN_DISTRACTORS = 2;
 
 type Word = typeof words.$inferSelect;
-type QuizSentence = typeof quizSentences.$inferSelect;
+type PoolWord = Word & { partOfSpeech: string | null };
 
 export type Question = {
   wordId: number;
@@ -45,7 +49,7 @@ function formOf(term: string): string {
   return "base";
 }
 
-function pickDistractors(word: Word, aiDistractors: string[], pool: Word[]): string[] {
+function pickDistractors(word: PoolWord, aiDistractors: string[], pool: PoolWord[]): string[] {
   const picked: string[] = [];
   const used = new Set([normalizeTerm(word.term)]);
   const add = (term: string) => {
@@ -72,13 +76,19 @@ function pickDistractors(word: Word, aiDistractors: string[], pool: Word[]): str
   return picked;
 }
 
-/** The least used sentence; among equals, the one used longest ago (never used comes first). */
-function chooseSentence(sentences: QuizSentence[]): QuizSentence | undefined {
-  return shuffle(sentences).sort(
-    (a, b) =>
-      a.timesUsed - b.timesUsed ||
-      (a.lastUsedAt?.getTime() ?? 0) - (b.lastUsedAt?.getTime() ?? 0),
-  )[0];
+/**
+ * The sentence this word has seen least; among equals, the one seen longest ago (never seen comes
+ * first). The user's own example sentence is never used as a question.
+ */
+function chooseSentence(
+  sentences: QuizSentence[],
+  views: Map<number, SentenceView> | undefined,
+  exampleSentence: string | null,
+): QuizSentence | undefined {
+  const usable = sentences.filter((s) => s.sentence !== exampleSentence);
+  const timesUsed = (s: QuizSentence) => views?.get(s.id)?.timesUsed ?? 0;
+  const lastUsed = (s: QuizSentence) => views?.get(s.id)?.lastUsedAt?.getTime() ?? 0;
+  return shuffle(usable).sort((a, b) => timesUsed(a) - timesUsed(b) || lastUsed(a) - lastUsed(b))[0];
 }
 
 /** Builds shuffled multiple-choice questions for the given words, each from a quiz sentence. */
@@ -86,25 +96,35 @@ export async function buildQuestions(
   quizWords: Word[],
   log: (error: unknown) => void,
 ): Promise<Question[]> {
-  // Waiting is only needed for words that have no quiz sentence yet.
+  // Waiting is only needed for terms that have no quiz sentence yet.
   await ensureQuizSentences(quizWords, { onlyEmpty: true });
 
-  const ids = quizWords.map((word) => word.id);
-  const [fresh, pool, sentences] = await Promise.all([
-    ids.length ? db.select().from(words).where(inArray(words.id, ids)) : [],
-    db.select().from(words),
-    sentencesByWord(ids),
+  const allWords = await db.select().from(words);
+  const entries = await getEntries([...new Set(allWords.map((word) => word.normalizedTerm))]);
+  const pool: PoolWord[] = allWords.map((word) => ({
+    ...word,
+    partOfSpeech: entries.get(word.normalizedTerm)?.partOfSpeech ?? null,
+  }));
+  const ids = new Set(quizWords.map((word) => word.id));
+  const fresh = pool.filter((word) => ids.has(word.id));
+  const [sentences, views] = await Promise.all([
+    quizSentencesByTerm(fresh.map((word) => word.normalizedTerm)),
+    viewsByWord([...ids]),
   ]);
 
   const questions: Question[] = [];
-  const usedSentenceIds: number[] = [];
+  const seen: { wordId: number; sentenceId: number }[] = [];
 
   for (const word of fresh) {
-    const chosen = chooseSentence(sentences.get(word.id) ?? []);
+    const chosen = chooseSentence(
+      sentences.get(word.normalizedTerm) ?? [],
+      views.get(word.id),
+      word.exampleSentence,
+    );
     // Without a quiz sentence (AI off or unavailable), fall back to the example sentence.
     const sentence = chosen?.sentence ?? word.exampleSentence;
     if (!sentence) continue;
-    if (chosen) usedSentenceIds.push(chosen.id);
+    if (chosen) seen.push({ wordId: word.id, sentenceId: chosen.id });
 
     questions.push({
       wordId: word.id,
@@ -116,14 +136,17 @@ export async function buildQuestions(
     });
   }
 
-  if (usedSentenceIds.length) {
+  if (seen.length) {
     await db
-      .update(quizSentences)
-      .set({ timesUsed: sql`${quizSentences.timesUsed} + 1`, lastUsedAt: new Date() })
-      .where(inArray(quizSentences.id, usedSentenceIds));
+      .insert(quizSentenceViews)
+      .values(seen.map((view) => ({ ...view, timesUsed: 1, lastUsedAt: new Date() })))
+      .onConflictDoUpdate({
+        target: [quizSentenceViews.wordId, quizSentenceViews.sentenceId],
+        set: { timesUsed: sql`${quizSentenceViews.timesUsed} + 1`, lastUsedAt: new Date() },
+      });
   }
-  // Top up words that just used their last new sentence, ready for the next quiz.
-  prepareQuizSentencesInBackground(ids, log);
+  // Top up terms this word has almost run through, ready for the next quiz.
+  prepareQuizSentencesInBackground([...ids], log);
 
   return shuffle(questions);
 }

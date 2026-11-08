@@ -14,6 +14,8 @@ type DraftWord = {
   exampleSentence: string;
   existingSetName: string | null;
   loading: boolean;
+  // Sentences already shown for this word, so "Gerar outra frase" brings a different one.
+  seen: string[];
 };
 
 type Step = "input" | "preview" | "saved";
@@ -64,7 +66,7 @@ export function AddWordsScreen() {
       const batchTerms = terms.slice(i, i + SUGGESTION_BATCH_SIZE);
       const batchKeys = keys.slice(i, i + SUGGESTION_BATCH_SIZE);
       try {
-        const suggestions = await api.suggest(batchTerms);
+        const suggestions = await api.suggest(batchTerms.map((term) => ({ term, seen: [] })));
         suggestions.forEach((suggestion, index) => {
           const key = batchKeys[index];
           if (!key) return;
@@ -76,6 +78,7 @@ export function AddWordsScreen() {
                     // Keep anything the user already typed while the suggestion was loading.
                     meaningPt: d.meaningPt || suggestion.meaningPt,
                     exampleSentence: d.exampleSentence || suggestion.exampleSentence,
+                    seen: suggestion.exampleSentence ? [suggestion.exampleSentence] : [],
                     loading: false,
                   }
                 : d,
@@ -115,6 +118,7 @@ export function AddWordsScreen() {
         exampleSentence: "",
         existingSetName: check.existing?.setName ?? null,
         loading: aiEnabled && !check.existing,
+        seen: [],
       }));
       setDrafts(next);
       setStep("preview");
@@ -149,6 +153,7 @@ export function AddWordsScreen() {
       exampleSentence: "",
       existingSetName: null,
       loading: true,
+      seen: [],
     }));
     setDrafts((current) => [...current, ...added]);
     await fillSuggestions(
@@ -161,10 +166,13 @@ export function AddWordsScreen() {
     setError(null);
     updateDraft(draft.key, { loading: true });
     try {
-      const [suggestion] = await api.suggest([draft.term]);
+      const seen = [...new Set([...draft.seen, draft.exampleSentence].filter(Boolean))];
+      const [suggestion] = await api.suggest([{ term: draft.term, seen }]);
+      const next = suggestion?.exampleSentence || draft.exampleSentence;
       updateDraft(draft.key, {
         meaningPt: draft.meaningPt || suggestion?.meaningPt || "",
-        exampleSentence: suggestion?.exampleSentence ?? draft.exampleSentence,
+        exampleSentence: next,
+        seen: [...seen.filter((s) => s !== next), next],
         loading: false,
       });
     } catch (err) {

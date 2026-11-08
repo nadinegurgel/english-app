@@ -47,6 +47,13 @@ Open http://localhost:5173. The "Today" screen shows **Servidor conectado** when
 
 Without a key, the "Add words" preview still works and you fill in the meaning and sentence yourself.
 
+AI results are saved in a shared dictionary and reused, so the same word never costs tokens twice once its limits are reached. The limits are set in `.env`:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `EXAMPLE_SENTENCES_PER_WORD` | 5 | AI example sentences stored per word before "Gerar frase" only rotates stored ones |
+| `QUIZ_SENTENCES_PER_WORD` | 8 | AI quiz sentences stored per word |
+
 ### Testing on your phone (same Wi-Fi)
 
 `npm run dev` also prints a **Network** address (for example `http://192.168.x.x:5173`). Open it on the phone. Installing the PWA and push notifications require HTTPS, so they only work after deploying with a domain.
@@ -71,6 +78,8 @@ Open http://localhost:8080. Nginx serves the web app and proxies `/api` to the A
 | `npm run db:migrate` | Applies pending migrations manually |
 
 ## Backups
+
+The `backups/` folder is ignored by Git and is a good place for local dumps.
 
 ```bash
 docker compose exec db pg_dump -U english_app english_app > backup.sql

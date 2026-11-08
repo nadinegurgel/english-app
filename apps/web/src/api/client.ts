@@ -9,6 +9,7 @@ export type Suggestion = {
   meaningPt: string;
   exampleSentence: string;
   sentenceHasTerm: boolean;
+  fromDictionary: boolean;
 };
 
 export type RelatedWord = { term: string; meaningPt: string };
@@ -93,8 +94,9 @@ export const api = {
     request<Settings>("/api/settings", { method: "PUT", body: settings }),
   checkDuplicates: (terms: string[]) =>
     request<DuplicateCheck[]>("/api/words/check", { method: "POST", body: { terms } }),
-  suggest: (terms: string[]) =>
-    request<Suggestion[]>("/api/words/suggestions", { method: "POST", body: { terms } }),
+  // `seen` lists the sentences already shown for each term, most recent last.
+  suggest: (items: { term: string; seen: string[] }[]) =>
+    request<Suggestion[]>("/api/words/suggestions", { method: "POST", body: { items } }),
   relatedWords: (body: { setId?: number; terms: string[]; exclude: string[] }) =>
     request<RelatedWord[]>("/api/words/related", { method: "POST", body }),
   saveWords: (setId: number, words: NewWord[]) =>
