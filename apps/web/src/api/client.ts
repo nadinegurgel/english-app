@@ -11,6 +11,8 @@ export type Suggestion = {
   sentenceHasTerm: boolean;
 };
 
+export type RelatedWord = { term: string; meaningPt: string };
+
 export type NewWord = { term: string; meaningPt?: string; exampleSentence?: string };
 
 export type Word = {
@@ -93,6 +95,8 @@ export const api = {
     request<DuplicateCheck[]>("/api/words/check", { method: "POST", body: { terms } }),
   suggest: (terms: string[]) =>
     request<Suggestion[]>("/api/words/suggestions", { method: "POST", body: { terms } }),
+  relatedWords: (body: { setId?: number; terms: string[]; exclude: string[] }) =>
+    request<RelatedWord[]>("/api/words/related", { method: "POST", body }),
   saveWords: (setId: number, words: NewWord[]) =>
     request<{ created: number; skipped: number }>("/api/words", {
       method: "POST",

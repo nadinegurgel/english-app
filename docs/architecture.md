@@ -44,13 +44,14 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 21 | The client sends its local date | All "today" logic uses the device's calendar day (YYYY-MM-DD), so the server's time zone does not matter. |
 | 22 | The quiz never uses the example sentence | Each word has its own pool of quiz sentences, so the user learns the word and not one sentence. The example sentence stays in "Words" for study. |
 | 23 | Quiz sentences come from a stored pool | 4 sentences are created per word in the background; the quiz picks the least used one and tops up the pool when only one unused sentence is left (up to 16 per word, then it rotates). Opening a quiz never waits for AI, except for a word with no sentence yet. |
+| 24 | Related word suggestions in the "Add words" preview | 5 at a time, with the Portuguese meaning beside each word. Based on the set's words and the preview, at the same level (never above B2), never a word already saved or already shown. Chosen words join the preview for review before saving. |
 
 ## Screens
 
 - **Today**: new words and reviews due, "Start quiz", progress, streak, upcoming reviews, link to Settings.
 - **Quiz**: daily quiz or free practice of a set, results with right and wrong words.
 - **Settings**: daily new-word limit and quiz format.
-- **Add words**: paste one word per line, choose a set, preview and edit meaning and example sentence, duplicate warnings.
+- **Add words**: paste one word per line, choose a set, preview and edit meaning and example sentence, duplicate warnings, related word suggestions.
 - **Words**: sets and words, search, inline edit, delete, rename and delete sets, practice a set (enabled with the quiz).
 
 ## Spaced repetition
@@ -93,6 +94,7 @@ Each word has its own schedule (`apps/api/src/services/schedule.ts`):
 | GET | `/api/words` | All words |
 | POST | `/api/words/check` | Which terms are already saved, and in which set |
 | POST | `/api/words/suggestions` | AI meaning and example sentence per term |
+| POST | `/api/words/related` | 5 new words related to a set, with Portuguese meanings |
 | POST | `/api/words` | Save words to a set, skipping duplicates |
 | PUT | `/api/words/:id` | Edit term, meaning and sentence (409 on duplicate spelling) |
 | DELETE | `/api/words/:id` | Delete a word |

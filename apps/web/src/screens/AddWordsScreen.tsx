@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ApiError, api, type WordSet } from "../api/client";
+import { ApiError, api, type RelatedWord, type WordSet } from "../api/client";
+import { RelatedWords } from "../components/RelatedWords";
 import { parseTerms, sentenceContainsTerm } from "../lib/terms";
 
 const NEW_SET = "new";
@@ -136,6 +137,24 @@ export function AddWordsScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const addRelated = async (related: RelatedWord[]) => {
+    if (related.length === 0) return;
+    const stamp = Date.now();
+    const added: DraftWord[] = related.map((word, index) => ({
+      key: `related-${stamp}-${index}`,
+      term: word.term,
+      meaningPt: word.meaningPt,
+      exampleSentence: "",
+      existingSetName: null,
+      loading: true,
+    }));
+    setDrafts((current) => [...current, ...added]);
+    await fillSuggestions(
+      added.map((d) => d.term),
+      added.map((d) => d.key),
+    );
   };
 
   const regenerate = async (draft: DraftWord) => {
@@ -375,6 +394,14 @@ export function AddWordsScreen() {
               );
             })}
           </ul>
+
+          {aiEnabled && (
+            <RelatedWords
+              setId={selectedSet === NEW_SET ? undefined : Number(selectedSet)}
+              terms={drafts.map((d) => d.term)}
+              onAdd={addRelated}
+            />
+          )}
 
           <div className="sticky-actions">
             <button
