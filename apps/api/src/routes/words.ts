@@ -9,7 +9,7 @@ import {
   prepareQuizSentencesInBackground,
   resetQuizSentences,
 } from "../services/quiz-data.js";
-import { generateSuggestions } from "../services/suggestions.js";
+import { generateSuggestions, suggestRelatedWords } from "../services/suggestions.js";
 
 const termSchema = z.string().trim().min(1).max(100);
 const meaningSchema = z.string().trim().max(200);
@@ -34,6 +34,16 @@ const saveBody = z.object({
     .min(1)
     .max(200),
 });
+
+const relatedBody = z.object({
+  setId: z.number().int().positive().optional(),
+  // Words in the preview that are not saved yet.
+  terms: z.array(termSchema).max(200),
+  // Suggestions already shown, so "more suggestions" brings new ones.
+  exclude: z.array(termSchema).max(300).default([]),
+});
+
+const RELATED_COUNT = 5;
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -85,6 +95,23 @@ export async function wordRoutes(app: FastifyInstance) {
   app.post("/api/words/suggestions", async (request) => {
     const { terms } = suggestionsBody.parse(request.body);
     return generateSuggestions(terms);
+  });
+
+  app.post("/api/words/related", async (request) => {
+    const body = relatedBody.parse(request.body);
+    const setWords = body.setId
+      ? await db.select({ term: words.term }).from(words).where(eq(words.setId, body.setId))
+      : [];
+    const setTerms = [...setWords.map((word) => word.term), ...body.terms];
+    if (setTerms.length === 0) return [];
+
+    // Words saved in any set are never suggested again.
+    const saved = await db.select({ term: words.term }).from(words);
+    return suggestRelatedWords(
+      setTerms,
+      [...body.exclude, ...saved.map((word) => word.term)],
+      RELATED_COUNT,
+    );
   });
 
   app.post("/api/words", async (request, reply) => {

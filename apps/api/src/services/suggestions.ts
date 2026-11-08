@@ -52,3 +52,49 @@ export async function generateSuggestions(terms: string[]): Promise<Suggestion[]
     };
   });
 }
+
+const RELATED_SYSTEM_PROMPT = `You help a Brazilian university student grow an English vocabulary set.
+You receive the words already in the set. Infer the set's theme and level from them, then suggest new English words or expressions that:
+- fit the same theme or situations,
+- have the same difficulty as the given words (never above CEFR B2),
+- are common and useful in real life, including phrasal verbs and expressions when they fit,
+- are not any of the given or excluded words, nor just a different form of them (for example "deadlines" for "deadline").
+For each suggestion return the term in its base form and meaningPt: its most common meaning in Brazilian Portuguese, short (1 to 4 words).`;
+
+const RelatedSchema = z.object({
+  suggestions: z.array(z.object({ term: z.string(), meaningPt: z.string() })),
+});
+
+export type RelatedWord = { term: string; meaningPt: string };
+
+/** Suggests `count` new words for a set, never returning a term from `exclude`. */
+export async function suggestRelatedWords(
+  setTerms: string[],
+  exclude: string[],
+  count: number,
+): Promise<RelatedWord[]> {
+  const output = await askClaude({
+    system: RELATED_SYSTEM_PROMPT,
+    content: [
+      `Words in the set:\n${setTerms.map((term) => `- ${term}`).join("\n")}`,
+      exclude.length ? `Do not suggest:\n${exclude.map((term) => `- ${term}`).join("\n")}` : "",
+      // Ask for a few extra in case some are filtered out as duplicates.
+      `Suggest ${count + 3} words.`,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    schema: RelatedSchema,
+  });
+
+  const excluded = new Set([...setTerms, ...exclude].map(normalizeTerm));
+  const result: RelatedWord[] = [];
+  for (const suggestion of output.suggestions) {
+    const term = suggestion.term.trim().replace(/\s+/g, " ");
+    const key = normalizeTerm(term);
+    if (!term || excluded.has(key)) continue;
+    excluded.add(key);
+    result.push({ term, meaningPt: suggestion.meaningPt.trim() });
+    if (result.length === count) break;
+  }
+  return result;
+}
