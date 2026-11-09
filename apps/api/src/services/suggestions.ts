@@ -5,13 +5,14 @@ import { dictionaryEntries, dictionaryExampleSentences } from "../db/schema.js";
 import { env } from "../env.js";
 import { HttpError } from "../lib/http-errors.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
+import { pickThemes } from "../lib/themes.js";
 import { askClaude, isAiEnabled } from "./claude.js";
 import { ensureEntries, getEntries, getExampleSentences } from "./dictionary.js";
 
-const SYSTEM_PROMPT = `You help a Brazilian university student learn English vocabulary.
+const SYSTEM_PROMPT = `You help a Brazilian adult learn English vocabulary.
 For each English word or expression you receive, write:
 - meaningPt: its most common meaning in Brazilian Portuguese, short (1 to 4 words). If there are two very common meanings, separate them with a comma.
-- exampleSentence: one natural English sentence at CEFR level B1, 8 to 18 words, set in everyday life or university life.
+- exampleSentence: one natural English sentence at CEFR level B1, 8 to 18 words, set in the situation given as "theme".
 
 Rules for exampleSentence:
 - It must contain the word or expression exactly as given (same spelling and form), because it will be used as a fill-in-the-blank quiz.
@@ -89,12 +90,15 @@ export async function suggestExamples(requests: SuggestionRequest[]): Promise<Su
         throw new HttpError(503, "AI suggestions are not configured. Set ANTHROPIC_API_KEY.");
       }
     } else {
+      // Different themes across the batch, so words added together do not share a setting.
+      const themes = pickThemes(toGenerate.length);
       const output = await askClaude({
         system: SYSTEM_PROMPT,
         content: toGenerate
-          .map((plan) => {
+          .map((plan, index) => {
+            const theme = themes[index];
             const avoid = [...plan.stored, ...plan.seen].map((s) => `    - ${s}`).join("\n");
-            return `- ${plan.term}${avoid ? `\n  avoid:\n${avoid}` : ""}`;
+            return `- ${plan.term}\n  theme: ${theme}${avoid ? `\n  avoid:\n${avoid}` : ""}`;
           })
           .join("\n"),
         schema: SuggestionsSchema,
@@ -139,7 +143,7 @@ export async function suggestExamples(requests: SuggestionRequest[]): Promise<Su
   }));
 }
 
-const RELATED_SYSTEM_PROMPT = `You help a Brazilian university student grow an English vocabulary set.
+const RELATED_SYSTEM_PROMPT = `You help a Brazilian adult grow an English vocabulary set.
 You receive the words already in the set. Infer the set's theme and level from them, then suggest new English words or expressions that:
 - fit the same theme or situations,
 - have the same difficulty as the given words (never above CEFR B2),

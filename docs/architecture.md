@@ -49,6 +49,7 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 26 | Shared quiz sentence pool | Quiz sentences belong to the term (up to `QUIZ_SENTENCES_PER_WORD`, 8), while `quiz_sentence_views` tracks rotation per word, so each user has their own rotation. |
 | 27 | The dictionary only holds AI output | Meanings and sentences typed or edited by a user stay on their word and are never shared. |
 | 28 | One dictionary entry per spelling | Words with several meanings (e.g. "bank") share one entry for now; senses can be split later. |
+| 29 | Varied sentence themes | Every AI sentence gets a random theme from `apps/api/src/lib/themes.ts` (daily life and home, work and studies, leisure and culture, health and society; university is one theme among 23). Words generated together get different themes. Sentences stored before this change were kept. |
 
 ## Screens
 

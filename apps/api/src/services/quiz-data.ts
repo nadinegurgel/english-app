@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import { dictionaryEntries, dictionaryQuizSentences, quizSentenceViews, words } from "../db/schema.js";
 import { env } from "../env.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
+import { pickThemes } from "../lib/themes.js";
 import { askClaude, isAiEnabled } from "./claude.js";
 import { ensureEntries, getEntries, getExampleSentences } from "./dictionary.js";
 
@@ -14,11 +15,11 @@ const SENTENCES_PER_BATCH = 4;
 // When a word has this many unseen sentences or fewer, more are created in the background.
 const MIN_UNSEEN_SENTENCES = 1;
 
-const SYSTEM_PROMPT = `You write fill-in-the-blank quiz questions for a Brazilian university student learning English at CEFR level B1.
+const SYSTEM_PROMPT = `You write fill-in-the-blank quiz questions for a Brazilian adult learning English at CEFR level B1.
 For each target word or expression you receive, return:
 - partOfSpeech: one of "noun", "verb", "adjective", "adverb", "phrasal verb", "expression", "other".
-- sentences: the requested number of new sentences. Each sentence has:
-  - sentence: natural, modern English at B1 level, 8 to 18 words, set in everyday life or university life.
+- sentences: one new sentence for each theme listed, in the same order. Each sentence has:
+  - sentence: natural, modern English at B1 level, 8 to 18 words, set in its theme.
   - distractors: exactly 3 wrong answers for the blank in that sentence.
 
 Rules for sentences:
@@ -84,7 +85,7 @@ async function generateFor(batch: Target[]) {
         const avoid = target.avoid.map((sentence) => `    - ${sentence}`).join("\n");
         return [
           `- target: ${target.term}`,
-          `  sentences to write: ${target.count}`,
+          `  themes: ${pickThemes(target.count).join("; ")}`,
           avoid ? `  avoid:\n${avoid}` : null,
         ]
           .filter(Boolean)
