@@ -36,6 +36,27 @@
       "when": 1794105055854,
       "tag": "0004_many_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794111227788,
+      "tag": "0005_nice_bloodstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794111236230,
+      "tag": "0006_copy_to_dictionary",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794111243300,
+      "tag": "0007_cold_thing",
+      "breakpoints": true
     }
   ]
 }

@@ -4,3 +4,4 @@ dev-dist/
 .env
 *.log
 .DS_Store
+backups/

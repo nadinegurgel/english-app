@@ -17,6 +17,8 @@ export function WordEditor({ word, aiEnabled, onSaved, onDeleted, onClose }: Pro
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Sentences shown while editing, so "Gerar outra frase" brings a different one each time.
+  const [seen, setSeen] = useState<string[]>(word.exampleSentence ? [word.exampleSentence] : []);
   const [error, setError] = useState<string | null>(null);
 
   const sentenceOk = !exampleSentence.trim() || sentenceContainsTerm(exampleSentence, term);
@@ -26,8 +28,13 @@ export function WordEditor({ word, aiEnabled, onSaved, onDeleted, onClose }: Pro
     setError(null);
     setGenerating(true);
     try {
-      const [suggestion] = await api.suggest([term.trim()]);
-      if (suggestion?.exampleSentence) setExampleSentence(suggestion.exampleSentence);
+      const shown = [...new Set([...seen, exampleSentence.trim()].filter(Boolean))];
+      const [suggestion] = await api.suggest([{ term: term.trim(), seen: shown }]);
+      const next = suggestion?.exampleSentence;
+      if (next) {
+        setExampleSentence(next);
+        setSeen([...shown.filter((s) => s !== next), next]);
+      }
       if (!meaningPt.trim() && suggestion?.meaningPt) setMeaningPt(suggestion.meaningPt);
     } catch {
       setError("Não foi possível gerar uma frase agora. Tente de novo.");

@@ -1,18 +1,18 @@
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/client.js";
-import { quizSentences, words } from "../db/schema.js";
+import { dictionaryEntries, dictionaryQuizSentences, quizSentenceViews, words } from "../db/schema.js";
+import { env } from "../env.js";
 import { normalizeTerm, sentenceContainsTerm } from "../lib/normalize.js";
 import { askClaude, isAiEnabled } from "./claude.js";
+import { ensureEntries, getEntries, getExampleSentences } from "./dictionary.js";
 
-// Words per request to Claude.
+// Terms per request to Claude.
 const BATCH_SIZE = 10;
-// Sentences created the first time, and each time all of a word's sentences have been used.
+// Sentences created at a time, until the term reaches QUIZ_SENTENCES_PER_WORD.
 const SENTENCES_PER_BATCH = 4;
-// When a word has this many unused sentences or fewer, more are created in the background.
-const MIN_UNUSED_SENTENCES = 1;
-// After this many sentences, the quiz rotates the existing ones instead of creating more.
-const MAX_SENTENCES_PER_WORD = 16;
+// When a word has this many unseen sentences or fewer, more are created in the background.
+const MIN_UNSEEN_SENTENCES = 1;
 
 const SYSTEM_PROMPT = `You write fill-in-the-blank quiz questions for a Brazilian university student learning English at CEFR level B1.
 For each target word or expression you receive, return:
@@ -43,29 +43,48 @@ const OutputSchema = z.object({
 });
 
 type Word = typeof words.$inferSelect;
+export type QuizSentence = typeof dictionaryQuizSentences.$inferSelect;
+export type SentenceView = typeof quizSentenceViews.$inferSelect;
 
-export async function sentencesByWord(wordIds: number[]) {
-  const rows = wordIds.length
-    ? await db.select().from(quizSentences).where(inArray(quizSentences.wordId, wordIds))
+export async function quizSentencesByTerm(normalizedTerms: string[]) {
+  const rows = normalizedTerms.length
+    ? await db
+        .select()
+        .from(dictionaryQuizSentences)
+        .where(inArray(dictionaryQuizSentences.normalizedTerm, normalizedTerms))
     : [];
-  const map = new Map<number, (typeof quizSentences.$inferSelect)[]>();
-  for (const row of rows) map.set(row.wordId, [...(map.get(row.wordId) ?? []), row]);
+  const map = new Map<string, QuizSentence[]>();
+  for (const row of rows) {
+    map.set(row.normalizedTerm, [...(map.get(row.normalizedTerm) ?? []), row]);
+  }
   return map;
 }
 
-async function generateFor(batch: Word[], existing: Map<number, { sentence: string }[]>) {
+/** Views per word, keyed by sentence id. */
+export async function viewsByWord(wordIds: number[]) {
+  const rows = wordIds.length
+    ? await db.select().from(quizSentenceViews).where(inArray(quizSentenceViews.wordId, wordIds))
+    : [];
+  const map = new Map<number, Map<number, SentenceView>>();
+  for (const row of rows) {
+    const views = map.get(row.wordId) ?? new Map<number, SentenceView>();
+    views.set(row.sentenceId, row);
+    map.set(row.wordId, views);
+  }
+  return map;
+}
+
+type Target = { term: string; key: string; count: number; avoid: string[] };
+
+async function generateFor(batch: Target[]) {
   const output = await askClaude({
     system: SYSTEM_PROMPT,
     content: batch
-      .map((word) => {
-        const avoid = [word.exampleSentence, ...(existing.get(word.id) ?? []).map((s) => s.sentence)]
-          .filter(Boolean)
-          .map((sentence) => `    - ${sentence}`)
-          .join("\n");
+      .map((target) => {
+        const avoid = target.avoid.map((sentence) => `    - ${sentence}`).join("\n");
         return [
-          `- target: ${word.term}`,
-          word.meaningPt ? `  meaning in Portuguese: ${word.meaningPt}` : null,
-          `  sentences to write: ${SENTENCES_PER_BATCH}`,
+          `- target: ${target.term}`,
+          `  sentences to write: ${target.count}`,
           avoid ? `  avoid:\n${avoid}` : null,
         ]
           .filter(Boolean)
@@ -76,49 +95,81 @@ async function generateFor(batch: Word[], existing: Map<number, { sentence: stri
   });
   const byTerm = new Map(output.items.map((item) => [normalizeTerm(item.term), item]));
 
-  for (const word of batch) {
-    const item = byTerm.get(normalizeTerm(word.term));
+  for (const target of batch) {
+    const item = byTerm.get(target.key);
     if (!item) continue;
     const valid = item.sentences
       .map((s) => ({
         sentence: s.sentence.trim(),
         distractors: [...new Set(s.distractors.map((d) => d.trim()).filter(Boolean))].filter(
-          (d) => normalizeTerm(d) !== normalizeTerm(word.term),
+          (d) => normalizeTerm(d) !== target.key,
         ),
       }))
       // The blank only works if the exact term is in the sentence.
-      .filter((s) => sentenceContainsTerm(s.sentence, word.term) && s.distractors.length > 0);
+      .filter((s) => sentenceContainsTerm(s.sentence, target.term) && s.distractors.length > 0)
+      .slice(0, target.count);
 
     if (valid.length > 0) {
-      await db.insert(quizSentences).values(valid.map((s) => ({ wordId: word.id, ...s })));
+      await db
+        .insert(dictionaryQuizSentences)
+        .values(valid.map((s) => ({ normalizedTerm: target.key, ...s })));
     }
-    await db
-      .update(words)
-      .set({ partOfSpeech: item.partOfSpeech.trim().toLowerCase() })
-      .where(eq(words.id, word.id));
+    const partOfSpeech = item.partOfSpeech.trim().toLowerCase();
+    if (partOfSpeech) {
+      await db
+        .update(dictionaryEntries)
+        .set({ partOfSpeech })
+        .where(eq(dictionaryEntries.normalizedTerm, target.key));
+    }
   }
 }
 
 /**
- * Creates quiz sentences with AI for words that are running out of unused sentences (or, with
- * `onlyEmpty`, have no sentence at all). Does nothing when the Claude API is not configured.
+ * Creates shared quiz sentences with AI for terms whose pool is empty (`onlyEmpty`) or that one of
+ * the given words has almost run through. A term never gets more than QUIZ_SENTENCES_PER_WORD.
+ * Does nothing when the Claude API is not configured.
  */
 export async function ensureQuizSentences(
   candidates: Word[],
   { onlyEmpty = false } = {},
 ): Promise<void> {
-  if (!isAiEnabled) return;
-  const existing = await sentencesByWord(candidates.map((word) => word.id));
-  const needing = candidates.filter((word) => {
-    const list = existing.get(word.id) ?? [];
-    if (onlyEmpty) return list.length === 0;
-    // Top up while one unused sentence is still left, so the next quiz never has to wait.
-    const unused = list.filter((s) => s.timesUsed === 0).length;
-    return list.length < MAX_SENTENCES_PER_WORD && unused <= MIN_UNUSED_SENTENCES;
-  });
+  if (!isAiEnabled || candidates.length === 0) return;
+  await ensureEntries(candidates.map((word) => ({ term: word.term })));
 
-  for (let i = 0; i < needing.length; i += BATCH_SIZE) {
-    await generateFor(needing.slice(i, i + BATCH_SIZE), existing);
+  const keys = [...new Set(candidates.map((word) => word.normalizedTerm))];
+  const [pools, views, examples, entries] = await Promise.all([
+    quizSentencesByTerm(keys),
+    viewsByWord(candidates.map((word) => word.id)),
+    getExampleSentences(keys),
+    getEntries(keys),
+  ]);
+
+  const targets = new Map<string, Target>();
+  for (const word of candidates) {
+    const key = word.normalizedTerm;
+    if (targets.has(key)) continue;
+    const pool = pools.get(key) ?? [];
+    const room = env.QUIZ_SENTENCES_PER_WORD - pool.length;
+    if (room <= 0) continue;
+    const unseen = pool.filter((s) => !views.get(word.id)?.get(s.id)?.timesUsed).length;
+    const needed = onlyEmpty ? pool.length === 0 : unseen <= MIN_UNSEEN_SENTENCES;
+    if (!needed) continue;
+    targets.set(key, {
+      term: entries.get(key)?.term ?? word.term,
+      key,
+      count: Math.min(SENTENCES_PER_BATCH, room),
+      // Quiz sentences must differ from every example sentence, shared or the user's own.
+      avoid: [
+        ...pool.map((s) => s.sentence),
+        ...(examples.get(key) ?? []),
+        ...(word.exampleSentence ? [word.exampleSentence] : []),
+      ],
+    });
+  }
+
+  const list = [...targets.values()];
+  for (let i = 0; i < list.length; i += BATCH_SIZE) {
+    await generateFor(list.slice(i, i + BATCH_SIZE));
   }
 }
 
@@ -129,13 +180,6 @@ export function prepareQuizSentencesInBackground(ids: number[], log: (error: unk
     .select()
     .from(words)
     .where(inArray(words.id, ids))
-    .then(ensureQuizSentences)
+    .then((rows) => ensureQuizSentences(rows))
     .catch(log);
 }
-
-/** Removes a word's quiz sentences, for example after its term changes. */
-export async function resetQuizSentences(wordId: number): Promise<void> {
-  await db.delete(quizSentences).where(eq(quizSentences.wordId, wordId));
-  await db.update(words).set({ partOfSpeech: null }).where(eq(words.id, wordId));
-}
-

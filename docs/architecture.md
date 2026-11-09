@@ -45,6 +45,10 @@ All data lives in PostgreSQL on the server. Every device that opens the app talk
 | 22 | The quiz never uses the example sentence | Each word has its own pool of quiz sentences, so the user learns the word and not one sentence. The example sentence stays in "Words" for study. |
 | 23 | Quiz sentences come from a stored pool | 4 sentences are created per word in the background; the quiz picks the least used one and tops up the pool when only one unused sentence is left (up to 16 per word, then it rotates). Opening a quiz never waits for AI, except for a word with no sentence yet. |
 | 24 | Related word suggestions in the "Add words" preview | 5 at a time, with the Portuguese meaning beside each word. Based on the set's words and the preview, at the same level (never above B2), never a word already saved or already shown. Chosen words join the preview for review before saving. |
+| 25 | Shared dictionary to save AI tokens | AI output is stored per normalized term in `dictionary_*` tables and reused by every user. "Gerar frase" shows an unseen stored sentence first, asks the AI only while the term has fewer than `EXAMPLE_SENTENCES_PER_WORD` (5), and rotates stored ones after that. The Portuguese meaning is generated once per term. |
+| 26 | Shared quiz sentence pool | Quiz sentences belong to the term (up to `QUIZ_SENTENCES_PER_WORD`, 8), while `quiz_sentence_views` tracks rotation per word, so each user has their own rotation. |
+| 27 | The dictionary only holds AI output | Meanings and sentences typed or edited by a user stay on their word and are never shared. |
+| 28 | One dictionary entry per spelling | Words with several meanings (e.g. "bank") share one entry for now; senses can be split later. |
 
 ## Screens
 
@@ -72,15 +76,30 @@ Each word has its own schedule (`apps/api/src/services/schedule.ts`):
 
 ## Quiz
 
-- Questions blank out the term in its example sentence and show 4 shuffled options.
-- Questions come from `quiz_sentences`, a pool of AI sentences per word, each with its own 3 distractors. The example sentence is only used as a fallback when AI is off.
-- The pool is filled in the background when words are saved and when the API starts, and is replaced when the term of a word is edited.
+- Questions blank out the term in a quiz sentence and show 4 shuffled options.
+- Quiz sentences come from the shared pool (`dictionary_quiz_sentences`), each with its own 3 AI distractors. The word picks the sentence it has seen least (`quiz_sentence_views`); the user's example sentence is never a question. The example sentence is only used as a fallback when AI is off.
+- The pool is filled in the background when words are saved and when the API starts, and topped up when a word has one unseen sentence left, until the term reaches its limit.
 - After answering, the quiz shows the quiz sentence completed with the term.
 - Two formats: one question at a time, or all on one screen. The choice is saved in Settings and can be changed at the start of each quiz.
 
+## Shared dictionary
+
+```
+dictionary_entries            normalized_term (PK), term, meaning_pt, part_of_speech
+dictionary_example_sentences  up to EXAMPLE_SENTENCES_PER_WORD per term
+dictionary_quiz_sentences     up to QUIZ_SENTENCES_PER_WORD per term, with distractors
+quiz_sentence_views           (word_id, sentence_id) -> times_used, last_used_at
+```
+
+The dictionary is filled only by the AI and shared by everyone. Each word keeps its own meaning and example sentence, so a user's edits never reach other users. "Gerar frase" sends the sentences already shown for the term (`seen`), and the API follows these rules (`pickStored`, covered by unit tests):
+
+1. A stored sentence the user has not seen yet, without AI.
+2. If every stored sentence was seen and the term has room, a new AI sentence, which is stored.
+3. If the term is full, a stored sentence other than the one on screen.
+
 ## AI suggestions
 
-`POST /api/words/suggestions` sends up to 50 terms in one request to `claude-haiku-5-5` (effort `low`, structured JSON output) and returns a Portuguese meaning and a B1 example sentence for each. The web app sends batches of 20. Without `ANTHROPIC_API_KEY` the endpoint returns 503 and the preview falls back to manual fields.
+All AI calls go through `apps/api/src/services/claude.ts` (`claude-haiku-5-5`, effort `low`, structured JSON output). `POST /api/words/suggestions` answers from the shared dictionary when it can and only sends the remaining terms to the AI, in one request. Without `ANTHROPIC_API_KEY`, stored dictionary data is still served; the endpoint returns 503 only when nothing is available, and the preview falls back to manual fields.
 
 ## API
 
@@ -93,7 +112,7 @@ Each word has its own schedule (`apps/api/src/services/schedule.ts`):
 | DELETE | `/api/sets/:id` | Delete a set and its words |
 | GET | `/api/words` | All words |
 | POST | `/api/words/check` | Which terms are already saved, and in which set |
-| POST | `/api/words/suggestions` | AI meaning and example sentence per term |
+| POST | `/api/words/suggestions` | Meaning and example sentence per term, from the dictionary or AI |
 | POST | `/api/words/related` | 5 new words related to a set, with Portuguese meanings |
 | POST | `/api/words` | Save words to a set, skipping duplicates |
 | PUT | `/api/words/:id` | Edit term, meaning and sentence (409 on duplicate spelling) |
